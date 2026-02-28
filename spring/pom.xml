@@ -26,6 +26,7 @@
         <module>project/shop</module>
         <module>project/pet</module>
         <module>dev-admin</module>
+        <module>style-guide</module>
 
     </modules>
 

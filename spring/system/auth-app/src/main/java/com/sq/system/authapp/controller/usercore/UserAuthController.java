@@ -1,11 +1,13 @@
 package com.sq.system.authapp.controller.usercore;
 
+import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.sq.system.captcha.support.CaptchaDispatcher;
 import com.sq.system.common.annotation.AdminLog;
 import com.sq.system.common.annotation.UserLog;
 import com.sq.system.common.result.ResponseResult;
 import com.sq.system.common.utils.CookieUtil;
 import com.sq.system.common.utils.IpUtil;
+import com.sq.system.common.utils.JwtUtil;
 import com.sq.system.framework.redis.UserIpAccessService;
 import com.sq.system.framework.redis.UserTokenService;
 import com.sq.system.security.context.UserTokenContextHolder;
@@ -14,6 +16,7 @@ import com.sq.system.usercore.dto.UserLoginDTO;
 import com.sq.system.usercore.dto.UserRegisterDTO;
 import com.sq.system.usercore.entity.UserEntity;
 import com.sq.system.usercore.entity.UserOperationLogEntity;
+import com.sq.system.usercore.entity.UserToRoleEntity;
 import com.sq.system.usercore.model.UserAuthModel;
 import com.sq.system.usercore.repository.UserRepository;
 import com.sq.system.usercore.repository.UserToProjectRepository;
@@ -32,6 +35,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 @RestController
 @RequestMapping("/auth/user")
@@ -50,9 +54,6 @@ public class UserAuthController {
     private UserTokenService userTokenService;
     @Autowired
     private UserToRoleRepository userToRoleRepository;
-
-//    @Resource
-//    private RedisSubAccountTimerService redisSubAccountTimerService;
 
     public UserAuthController(UserRepository userRepository,
                               CaptchaDispatcher captchaDispatcher,
@@ -116,13 +117,42 @@ public class UserAuthController {
 
     @PostMapping("/register")
     @Operation(summary = "用户注册")
-    public ResponseResult<String> register(@RequestBody UserRegisterDTO dto) {
-        String status = model.register(dto, 1);
-        if ("注册成功".equals(status)) {
-            return ResponseResult.success("注册成功");
-        } else {
-            return ResponseResult.fail(status);
+    public ResponseResult<?> register(@RequestBody UserRegisterDTO dto, HttpServletRequest request, HttpServletResponse response) {
+        String ip = IpUtil.getIp(request);
+
+        if (dto.getType() == null) {
+            dto.setType(2L);
         }
+        if (dto.getRole() == null || (!Objects.equals(dto.getRole(), 2L) && !Objects.equals(dto.getRole(), 4L))) {
+            return ResponseResult.fail("仅支持学生或班长/班主任注册");
+        }
+
+        Map<String, Object> registerResult = model.register(dto, ip);
+        boolean ok = Boolean.TRUE.equals(registerResult.get("ok"));
+        if (!ok) {
+            return ResponseResult.fail((String) registerResult.get("message"));
+        }
+
+        UserEntity user = (UserEntity) registerResult.get("user");
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("id", user.getId());
+        claims.put("username", user.getUsername());
+        claims.put("status", user.getStatus());
+
+        String token = JwtUtil.generateToken(claims);
+        userTokenService.existsDelete(user.getId());
+        userTokenService.saveToken(token, user);
+        CookieUtil.setLoginCookies(response, token, dto.getType());
+
+        Map<String, Object> data = new HashMap<>();
+        data.put("token", token);
+        Map<String, Object> userData = new HashMap<>();
+        userData.put("id", user.getId());
+        userData.put("username", user.getUsername());
+        userData.put("nickname", user.getNickname());
+        userData.put("role", Objects.equals(dto.getRole(), 4L) ? "monitor" : "student");
+        data.put("user", userData);
+        return ResponseResult.success(data);
     }
 
     @PostMapping("/login")
@@ -131,7 +161,7 @@ public class UserAuthController {
         String ip = IpUtil.getIp(request);
         String uri = request.getRequestURI();
 
-        UserLoginVO vo = model.login(dto,ip);
+        UserLoginVO vo = model.login(dto, ip);
         UserEntity user = vo.getUser();
 
         UserOperationLogEntity log = new UserOperationLogEntity();
@@ -157,23 +187,33 @@ public class UserAuthController {
             log.setResultStatus("成功");
             log.setResultMessage(vo.getToken());
 
-            if(userTokenService.existsDelete(user.getId())) {
-
-            }
-
+            userTokenService.existsDelete(user.getId());
             userIpAccessService.recordUserIpAccess(log, vo.getToken());
             userTokenService.saveToken(vo.getToken(), user);
-            // ✅ 使用工具类设置 Cookie
-            CookieUtil.setLoginCookies(response, vo.getToken(), user.getId());
+            CookieUtil.setLoginCookies(response, vo.getToken(), dto.getType());
+
+            UserToRoleEntity roleEntity = userToRoleRepository.selectOne(
+                    Wrappers.lambdaQuery(UserToRoleEntity.class)
+                            .eq(UserToRoleEntity::getUserId, user.getId())
+                            .last("limit 1")
+            );
+
             Map<String, Object> result = new HashMap<>();
             result.put("message", "登录成功");
             result.put("token", vo.getToken());
+
+            Map<String, Object> userData = new HashMap<>();
+            userData.put("id", user.getId());
+            userData.put("username", user.getUsername());
+            userData.put("nickname", user.getNickname());
+            userData.put("role", roleEntity != null && Objects.equals(roleEntity.getRoleId(), 4L) ? "monitor" : "student");
+            result.put("user", userData);
             return ResponseResult.success(result);
         }
     }
 
     @GetMapping("/logout")
-    @UserLog(module = "system/auth-app",action = "用户退出登录")
+    @UserLog(module = "system/auth-app", action = "用户退出登录")
     @Operation(summary = "用户退出登录")
     public ResponseResult<String> logout(HttpServletResponse response, HttpServletRequest request) {
         String token = request.getHeader("Authorization");
@@ -197,44 +237,43 @@ public class UserAuthController {
             return ResponseResult.fail("token不存在");
         } else {
             userTokenService.removeToken(token);
-            // ✅ 使用工具类清除 Cookie
             CookieUtil.clearLoginCookies(response);
             return ResponseResult.success("退出登录成功");
         }
     }
 
     @PostMapping("/change")
-    @UserLog(module = "用户核心",action = "用户修改密码和安全密码")
+    @UserLog(module = "用户核心", action = "用户修改密码和安全密码")
     @Operation(summary = "用户修改密码和安全密码")
     public ResponseResult<String> change(@RequestBody UserChangeDto dto) {
         UserEntity user = UserTokenContextHolder.get();
-        if(user == null) {
+        if (user == null) {
             return ResponseResult.fail("用户不存在");
         }
 
-        if(dto.getNewPassword() == null || dto.getNewPassword().isEmpty()) {
+        if (dto.getNewPassword() == null || dto.getNewPassword().isEmpty()) {
             return ResponseResult.fail("未知新密码");
         }
 
-        if(dto.getOldPassword() == null || dto.getNewPassword().isEmpty()) {
+        if (dto.getOldPassword() == null || dto.getNewPassword().isEmpty()) {
             return ResponseResult.fail("未知旧密码");
         }
 
-        if(dto.getType() == null) {
-            return  ResponseResult.fail("未知修改类型");
+        if (dto.getType() == null) {
+            return ResponseResult.fail("未知修改类型");
         }
 
-        if(dto.getType() == 1){
-            if(!dto.getOldPassword().equals(user.getPassword())){
+        if (dto.getType() == 1) {
+            if (!dto.getOldPassword().equals(user.getPassword())) {
                 return ResponseResult.fail("旧密码错误");
-            }else{
+            } else {
                 user.setPassword(dto.getNewPassword());
                 userRepository.updateById(user);
             }
-        }else{
-            if(!dto.getOldPassword().equals(user.getSecurePassword())){
+        } else {
+            if (!dto.getOldPassword().equals(user.getSecurePassword())) {
                 return ResponseResult.fail("旧密码错误");
-            }else{
+            } else {
                 user.setSecurePassword(dto.getNewPassword());
                 userRepository.updateById(user);
             }
@@ -249,32 +288,20 @@ public class UserAuthController {
     public ResponseResult<?> sealSystemUser(@RequestParam Long id) {
         UserEntity user = userRepository.selectById(id);
 
-        if(user == null) {
+        if (user == null) {
             return ResponseResult.fail("没有找到用户 ");
         }
 
-        if(user.getStatus() == 1){
+        if (user.getStatus() == 1) {
             user.setStatus(0);
             user.setUpdateTime(LocalDateTime.now());
             userRepository.updateById(user);
-
-//            TaskLogWebSocket.sendToUserJson(fansUserRepository.selectByUserId(user.getId()).getId(), "LOGIN",
-//                    "您的账号于" + LocalDateTime.now() + "因违规操作被封禁",
-//                    "请及时联系您的上级或前往telegram联系客服咨询");
-
-//            if(fansUser.getPlayStatue() == 1){
-//                redisSubAccountTimerService.stop(fansUser.getId());
-//            }
-
             return ResponseResult.success("封禁用户成功，强制下线并且停止其任务");
-        }else{
+        } else {
             user.setStatus(1);
             user.setUpdateTime(LocalDateTime.now());
             userRepository.updateById(user);
-
-
             return ResponseResult.success("用户已经解除封禁");
         }
-
     }
 }
