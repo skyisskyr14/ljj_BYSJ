@@ -21,7 +21,7 @@ public class BootSuccessPrinter {
         System.out.println();
         System.out.println("        ★ 宠物寄养预约与管理系统 ★");
         System.out.println();
-        System.out.println("         ★ 作者： 赵  兴  琪  ★");
+        System.out.println("         ★ 作者： 李  佳  骏   ★");
         System.out.println();
         System.out.println("      ★ 好~运~连~连~ 永~不~宕~机~ ★");
         System.out.println("==========================================");
