@@ -1,0 +1,37 @@
+@media (max-width: 1200px) {
+  .side { width: 21vw; min-width: 200px; }
+  .auth-card { width: min(94vw, 46vw); }
+}
+
+@media (max-width: 768px) {
+  .side {
+    position: fixed;
+    left: -78vw;
+    top: 0;
+    width: 74vw;
+    min-width: auto;
+    height: 100%;
+    transition: .25s ease;
+  }
+  .side.open { left: 0; }
+  .side-mask {
+    position: fixed;
+    inset: 0;
+    background: rgba(67, 45, 7, .24);
+    z-index: 15;
+  }
+  .top { margin: .8vh 2.6vw 0; padding: 0 3vw; }
+  .content { padding: 1.2vh 2.6vw 2vh; }
+  .card { border-radius: 4vw; padding: 1.8vh 3vw; }
+  .page-head { flex-direction: column; align-items: flex-start; gap: .6vh; }
+  .auth-card {
+    width: 94vw;
+    min-width: 0;
+    border-radius: 6vw;
+    padding: 3vh 5vw;
+  }
+  input, textarea, select, button { font-size: 3.7vw; }
+  button { width: 100%; padding: 1.3vh 2.2vw; }
+  .grid { grid-template-columns: 1fr; }
+  .toolbar { gap: 2vw; }
+}

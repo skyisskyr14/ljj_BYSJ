@@ -1,0 +1,1 @@
+<template><div><PageHeader title="成员与职位管理" desc="演示职位字典"/><div class="card"><p>可设置：班长 / 学习委员 / 文艺委员</p><p>当前为演示模式，可在后端接入后扩展。</p></div></div></template><script>import PageHeader from '../../components/PageHeader.vue';export default{components:{PageHeader}}</script>

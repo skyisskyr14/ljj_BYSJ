@@ -1,0 +1,1 @@
+<template><div><PageHeader title="图片审核" desc="演示"/><div class="card"><p>图片审核已接入 mock 状态字段，后端接入后可联动 AI 审核。</p></div></div></template><script>import PageHeader from '../../components/PageHeader.vue';export default{components:{PageHeader}}</script>

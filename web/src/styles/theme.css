@@ -1,0 +1,24 @@
+:root {
+  --primary: #f3b13f;
+  --primary-soft: #ffe6b0;
+  --primary-deep: #d98b1d;
+  --accent: #ffcf6b;
+  --bg: #fff8eb;
+  --bg-soft: #fffdf7;
+  --surface: #ffffff;
+  --surface-2: #fff6df;
+  --text: #513a1c;
+  --muted: #9c7d4f;
+  --success: #76b779;
+  --danger: #ef7d71;
+  --radius-xs: 0.6vw;
+  --radius-sm: 1vw;
+  --radius-md: 1.4vw;
+  --radius-lg: 2vw;
+  --space-1: 0.6vw;
+  --space-2: 1vw;
+  --space-3: 1.4vw;
+  --space-4: 2vw;
+  --shadow-soft: 0 1.2vh 2.5vh rgba(230, 173, 67, 0.14);
+  --shadow-hover: 0 1.8vh 3.6vh rgba(218, 151, 17, 0.2);
+}

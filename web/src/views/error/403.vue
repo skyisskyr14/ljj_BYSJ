@@ -1,0 +1,1 @@
+<template><div class="center"><h1>403</h1><p>无权限访问</p><router-link to="/">返回首页</router-link></div></template>

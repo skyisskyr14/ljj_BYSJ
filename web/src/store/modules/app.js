@@ -1,0 +1,1 @@
+export default {namespaced:true,state:{sidebar:false,currentClass:localStorage.getItem('currentClass')||'c1'},mutations:{toggle(s){s.sidebar=!s.sidebar},setClass(s,id){s.currentClass=id;localStorage.setItem('currentClass',id)}}}
