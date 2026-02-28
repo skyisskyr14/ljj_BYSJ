@@ -29,27 +29,50 @@ public class UserAuthModel {
     private final UserToProjectRepository userToProjectRepository;
     private final UserToRoleRepository userToRoleRepository;
 
-    public String register(UserRegisterDTO dto, long projectId) {
-        // 1) 验证码（你暂时注释掉了，这里保持你的逻辑）
-        // boolean valid = captchaDispatcher.get("default").verify(dto.getCaptchaUuid(), dto.getCaptchaInput());
-        // if (!valid) return "验证码错误";
+    public Map<String, Object> register(UserRegisterDTO dto, String ip) {
+        Map<String, Object> result = new HashMap<>();
 
-        // 2) 用户名是否存在
-        if (userCoreRepository.findByUsername(dto.getUsername()) != null) {
-            return "用户名已存在";
+        boolean valid = captchaDispatcher.get(dto.getCaptchaType())
+                .verify(dto.getCaptchaUuid(), dto.getCaptchaInput());
+        if (!valid) {
+            result.put("ok", false);
+            result.put("message", "验证码错误");
+            return result;
         }
 
-        // 3) 组装并写入用户
+        if (userCoreRepository.findByUsername(dto.getUsername()) != null) {
+            result.put("ok", false);
+            result.put("message", "用户名已存在");
+            return result;
+        }
+
         UserEntity user = new UserEntity();
         user.setUsername(dto.getUsername());
+        user.setNickname(dto.getNickname());
         user.setPassword(dto.getPassword());
         user.setSecurePassword(dto.getSecurePassword());
         user.setStatus(1);
         user.setEmail(dto.getEmail());
+        user.setCreateIp(ip);
+        user.setNowIp(ip);
         user.setCreateTime(LocalDateTime.now());
-
+        user.setUpdateTime(LocalDateTime.now());
         userCoreRepository.insert(user);
-        return "注册成功";
+
+        UserToRoleEntity roleEntity = new UserToRoleEntity();
+        roleEntity.setUserId(user.getId());
+        roleEntity.setRoleId(dto.getRole());
+        userToRoleRepository.insert(roleEntity);
+
+        UserToProjectEntity projectEntity = new UserToProjectEntity();
+        projectEntity.setUserId(user.getId());
+        projectEntity.setProjectId(dto.getType());
+        userToProjectRepository.insert(projectEntity);
+
+        result.put("ok", true);
+        result.put("message", "注册成功");
+        result.put("user", user);
+        return result;
     }
 
     public UserLoginVO login(UserLoginDTO dto, String ip) {
